@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: calico-backend
+    env: node
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: MONGO_URI
+        value: mongodb+srv://calicoAdmin:${DB_PASSWORD}@cluster0.xxx.mongodb.net/calicoDB?retryWrites=true&w=majority
+      - key: JWT_SECRET
+        value: 711dd3020f853949eba356f14c557a15a3bd2a4ee0cab2b56d9135883a051bf5 # Generate with: openssl rand -hex 32
+      - key: NODE_ENV
+        value: production
