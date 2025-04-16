@@ -87,7 +87,7 @@ app.use(cors({
 }));
 
 // ============================================
-// 🗃️  MongoDB Connection (Improved)
+// 🗃️  MongoDB Connection (Optimized)
 // ============================================
 const DB_URI = process.env.MONGODB_URI || process.env.MONGO_URI || "mongodb://127.0.0.1:27017/calicoDB";
 
@@ -98,16 +98,15 @@ if (!DB_URI) {
   process.exit(1);
 }
 
-// Connection options
+// Connection options (updated for Mongoose 6+)
 const mongooseOptions = {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
   serverSelectionTimeoutMS: 5000, // Fail fast
   retryWrites: true,
   w: 'majority'
 };
 
-// Connect to MongoDB
+// Connect to MongoDB with enhanced logging
+console.log('🔗 Connecting to MongoDB...');
 mongoose.connect(DB_URI, mongooseOptions)
   .then(() => {
     console.log(`✅ MongoDB Connected to ${mongoose.connection.name}`);
@@ -117,6 +116,15 @@ mongoose.connect(DB_URI, mongooseOptions)
     console.error('❌ MongoDB Connection Error:', err.message);
     process.exit(1);
   });
+
+// Connection event listeners
+mongoose.connection.on('connecting', () => {
+  console.log('🔄 Establishing MongoDB connection...');
+});
+
+mongoose.connection.on('disconnected', () => {
+  console.log('⚠️ MongoDB disconnected');
+});
 
 // ============================================
 // 🛣️  Route Imports
@@ -141,13 +149,22 @@ app.use("/api/admin", adminRoutes);
 app.use("/api/parties", partyRoutes);
 
 // ============================================
-// 🏠 Base Route
+// 🏠 Base Route with Health Check
 // ============================================
 app.get("/", (req, res) => {
+  const dbStatus = mongoose.connection.readyState;
+  const statusMap = {
+    0: 'Disconnected',
+    1: 'Connected',
+    2: 'Connecting',
+    3: 'Disconnecting'
+  };
+  
   res.status(200).json({ 
     message: "Welcome to the Daybook API",
-    database: mongoose.connection.readyState === 1 ? "Connected" : "Disconnected",
-    environment: process.env.NODE_ENV || "development"
+    database: statusMap[dbStatus] || 'Unknown',
+    environment: process.env.NODE_ENV || "development",
+    timestamp: new Date().toISOString()
   });
 });
 
@@ -155,17 +172,22 @@ app.get("/", (req, res) => {
 // ❌ 404 Handler
 // ============================================
 app.use((req, res) => {
-  res.status(404).json({ error: "Route not found" });
+  res.status(404).json({ 
+    error: "Route not found",
+    path: req.path,
+    method: req.method
+  });
 });
 
 // ============================================
 // 🔥 Global Error Handler
 // ============================================
 app.use((err, req, res, next) => {
-  console.error("🔥 Server Error:", err);
+  console.error("🔥 Server Error:", err.stack);
   res.status(500).json({ 
     error: "Internal Server Error",
-    message: err.message 
+    message: err.message,
+    timestamp: new Date().toISOString()
   });
 });
 
@@ -179,13 +201,24 @@ const server = app.listen(PORT, () => {
   console.log(`🛢️  MongoDB Status: ${mongoose.connection.readyState === 1 ? 'Connected' : 'Disconnected'}\n`);
 });
 
-// Graceful shutdown
+// ============================================
+// 🔌 Graceful Shutdown
+// ============================================
 process.on('SIGTERM', () => {
-  console.log('SIGTERM received. Shutting down gracefully...');
+  console.log('\n🛑 SIGTERM received. Shutting down gracefully...');
   server.close(() => {
     mongoose.connection.close(false, () => {
-      console.log('MongoDB connection closed');
+      console.log('✅ MongoDB connection closed');
+      console.log('👋 Server terminated');
       process.exit(0);
     });
+  });
+});
+
+process.on('SIGINT', () => {
+  console.log('\n🛑 SIGINT received. Shutting down...');
+  server.close(() => {
+    mongoose.connection.close(false);
+    process.exit(0);
   });
 });
