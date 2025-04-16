@@ -89,43 +89,28 @@ app.use(cors({
 // ============================================
 // 🗃️  MongoDB Connection (Optimized)
 // ============================================
-const DB_URI = process.env.MONGODB_URI || process.env.MONGO_URI || "mongodb://127.0.0.1:27017/calicoDB";
+cconst DB_URI = process.env.MONGODB_URI || process.env.MONGO_URI || "mongodb://127.0.0.1:27017/calicoDB";
 
-// Validate connection string
 if (!DB_URI) {
-  console.error('❌ FATAL: No MongoDB URI found in environment variables');
-  console.error('Please set either MONGODB_URI or MONGO_URI');
+  console.error('❌ No MongoDB URI configured');
   process.exit(1);
 }
 
-// Connection options (updated for Mongoose 6+)
-const mongooseOptions = {
-  serverSelectionTimeoutMS: 5000, // Fail fast
+console.log('🔗 Connecting to MongoDB...');
+mongoose.connect(DB_URI, {
+  serverSelectionTimeoutMS: 5000,
   retryWrites: true,
   w: 'majority'
-};
-
-// Connect to MongoDB with enhanced logging
-console.log('🔗 Connecting to MongoDB...');
-mongoose.connect(DB_URI, mongooseOptions)
-  .then(() => {
-    console.log(`✅ MongoDB Connected to ${mongoose.connection.name}`);
-    console.log(`🛢️  Database: ${mongoose.connection.db.databaseName}`);
-  })
-  .catch(err => {
-    console.error('❌ MongoDB Connection Error:', err.message);
-    process.exit(1);
-  });
-
-// Connection event listeners
-mongoose.connection.on('connecting', () => {
-  console.log('🔄 Establishing MongoDB connection...');
+})
+.then(() => console.log('✅ MongoDB connected successfully'))
+.catch(err => {
+  console.error('❌ MongoDB connection failed:', err.message);
+  process.exit(1);
 });
 
-mongoose.connection.on('disconnected', () => {
-  console.log('⚠️ MongoDB disconnected');
-});
-
+// Connection events
+mongoose.connection.on('connecting', () => console.log('🔄 Connecting to MongoDB...'));
+mongoose.connection.on('disconnected', () => console.log('⚠️ MongoDB disconnected'));
 // ============================================
 // 🛣️  Route Imports
 // ============================================
