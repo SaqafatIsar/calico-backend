@@ -62,7 +62,7 @@ const cors = require("cors");
 const app = express();
 
 // ============================================
-// 🛡️  Environment Configuration
+// 🛡️ Environment Configuration
 // ============================================
 // Only load dotenv in development
 if (process.env.NODE_ENV !== 'production') {
@@ -87,16 +87,16 @@ app.use(cors({
 }));
 
 // ============================================
-// 🗃️  MongoDB Connection (Optimized)
+// 🗃️ MongoDB Connection (Optimized)
 // ============================================
-cconst DB_URI = process.env.MONGODB_URI || process.env.MONGO_URI || "mongodb://127.0.0.1:27017/calicoDB";
-
+const DB_URI = process.env.MONGODB_URI || process.env.MONGO_URI || "mongodb://127.0.0.1:27017/calicoDB";
 if (!DB_URI) {
   console.error('❌ No MongoDB URI configured');
   process.exit(1);
 }
 
-console.log('🔗 Connecting to MongoDB...');
+console.log('🔗 Connecting to MongoDB at:', DB_URI.replace(/:[^@]+@/, ':*****@'));
+
 mongoose.connect(DB_URI, {
   serverSelectionTimeoutMS: 5000,
   retryWrites: true,
@@ -110,9 +110,32 @@ mongoose.connect(DB_URI, {
 
 // Connection events
 mongoose.connection.on('connecting', () => console.log('🔄 Connecting to MongoDB...'));
+mongoose.connection.on('connected', () => console.log('✅ MongoDB connection established'));
 mongoose.connection.on('disconnected', () => console.log('⚠️ MongoDB disconnected'));
+mongoose.connection.on('error', (err) => console.error('❌ MongoDB connection error:', err));
+
 // ============================================
-// 🛣️  Route Imports
+// 🩺 Health Check Endpoint
+// ============================================
+app.get('/health', (req, res) => {
+  const dbStatus = mongoose.connection.readyState;
+  const statusMap = {
+    0: 'DISCONNECTED',
+    1: 'CONNECTED',
+    2: 'CONNECTING',
+    3: 'DISCONNECTING'
+  };
+  
+  res.status(200).json({
+    status: 'UP',
+    database: statusMap[dbStatus] || 'UNKNOWN',
+    timestamp: new Date().toISOString(),
+    version: process.env.npm_package_version || '1.0.0'
+  });
+});
+
+// ============================================
+// 🛣️ Route Imports
 // ============================================
 const authRoutes = require("./routes/auth");
 const approvalRoutes = require("./routes/approval");
@@ -134,7 +157,7 @@ app.use("/api/admin", adminRoutes);
 app.use("/api/parties", partyRoutes);
 
 // ============================================
-// 🏠 Base Route with Health Check
+// 🏠 Base Route
 // ============================================
 app.get("/", (req, res) => {
   const dbStatus = mongoose.connection.readyState;
@@ -149,7 +172,12 @@ app.get("/", (req, res) => {
     message: "Welcome to the Daybook API",
     database: statusMap[dbStatus] || 'Unknown',
     environment: process.env.NODE_ENV || "development",
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
+    endpoints: {
+      auth: "/api/auth",
+      approvals: "/api/approvals",
+      daybooks: "/api/daybooks"
+    }
   });
 });
 
@@ -160,7 +188,13 @@ app.use((req, res) => {
   res.status(404).json({ 
     error: "Route not found",
     path: req.path,
-    method: req.method
+    method: req.method,
+    availableEndpoints: [
+      "/api/auth",
+      "/api/approvals",
+      "/api/daybooks",
+      "/api/admin"
+    ]
   });
 });
 
@@ -172,7 +206,8 @@ app.use((err, req, res, next) => {
   res.status(500).json({ 
     error: "Internal Server Error",
     message: err.message,
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
+    requestId: req.id
   });
 });
 
@@ -180,17 +215,21 @@ app.use((err, req, res, next) => {
 // 🚀 Server Startup
 // ============================================
 const PORT = process.env.PORT || 5000;
-const server = app.listen(PORT, () => {
-  console.log(`\n🚀 Server running on http://localhost:${PORT}`);
-  console.log(`🛰️  Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`🛢️  MongoDB Status: ${mongoose.connection.readyState === 1 ? 'Connected' : 'Disconnected'}\n`);
+const server = app.listen(PORT, '0.0.0.0', () => {
+  console.log(`
+  =================================
+  🚀 Server running on port ${PORT}
+  🛰️  Environment: ${process.env.NODE_ENV || 'development'}
+  🛢️  MongoDB Status: ${mongoose.connection.readyState === 1 ? 'CONNECTED' : 'DISCONNECTED'}
+  =================================
+  `);
 });
 
 // ============================================
 // 🔌 Graceful Shutdown
 // ============================================
-process.on('SIGTERM', () => {
-  console.log('\n🛑 SIGTERM received. Shutting down gracefully...');
+const shutdown = (signal) => {
+  console.log(`\n🛑 ${signal} received. Shutting down gracefully...`);
   server.close(() => {
     mongoose.connection.close(false, () => {
       console.log('✅ MongoDB connection closed');
@@ -198,12 +237,7 @@ process.on('SIGTERM', () => {
       process.exit(0);
     });
   });
-});
+};
 
-process.on('SIGINT', () => {
-  console.log('\n🛑 SIGINT received. Shutting down...');
-  server.close(() => {
-    mongoose.connection.close(false);
-    process.exit(0);
-  });
-});
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));
