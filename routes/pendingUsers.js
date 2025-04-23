@@ -1,13 +1,13 @@
 const express = require("express");
 const mongoose = require("mongoose");
-const PendingUser = require("../models/PendingUser"); // Ensure this model exists
-
+const PendingUser = require("../models/PendingUser");
+const User = require("../models/User"); // Make sure to import User model
 const router = express.Router();
 
 // Get All Pending Users
 router.get("/", async (req, res) => {
   try {
-    const pendingUsers = await PendingUser.find({}, "username createdAt"); // Changed from email to username
+    const pendingUsers = await PendingUser.find({}, "username email createdAt"); // Include both username and email
     res.json(pendingUsers);
   } catch (error) {
     console.error("Error fetching pending users:", error);
@@ -15,13 +15,57 @@ router.get("/", async (req, res) => {
   }
 });
 
-// Delete a Pending User
-router.delete("/delete-user/:userId", async (req, res) => {
+// Approve and Move User to Main Collection
+router.post("/approve-user/:userId", async (req, res) => {
   try {
-    const userId = req.params.userId;
-    console.log("Deleting user with ID:", userId); // Debugging line
+    const { userId } = req.params;
+    const { role } = req.body;
 
-    // Check if the userId is a valid ObjectId
+    // Validate input
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      return res.status(400).json({ error: "Invalid user ID" });
+    }
+    if (!role) {
+      return res.status(400).json({ error: "Role is required" });
+    }
+
+    // Find and remove from pending
+    const pendingUser = await PendingUser.findByIdAndDelete(userId);
+    if (!pendingUser) {
+      return res.status(404).json({ error: "Pending user not found" });
+    }
+
+    // Create new user in main collection
+    const newUser = new User({
+      username: pendingUser.username,
+      email: pendingUser.email,
+      password: pendingUser.password,
+      role: role
+    });
+
+    await newUser.save();
+    
+    res.json({ 
+      success: true,
+      message: "User approved successfully",
+      user: {
+        id: newUser._id,
+        username: newUser.username,
+        role: newUser.role
+      }
+    });
+
+  } catch (error) {
+    console.error("Error approving user:", error);
+    res.status(500).json({ error: "Error approving user" });
+  }
+});
+
+// Delete a Pending User
+router.delete("/:userId", async (req, res) => {
+  try {
+    const { userId } = req.params;
+
     if (!mongoose.Types.ObjectId.isValid(userId)) {
       return res.status(400).json({ error: "Invalid user ID" });
     }
@@ -30,7 +74,11 @@ router.delete("/delete-user/:userId", async (req, res) => {
     if (!deletedUser) {
       return res.status(404).json({ message: "User not found" });
     }
-    res.json({ message: "User deleted successfully" });
+    
+    res.json({ 
+      success: true,
+      message: "User rejected successfully" 
+    });
   } catch (error) {
     console.error("Error deleting user:", error);
     res.status(500).json({ error: "Error deleting user" });

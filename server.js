@@ -80,10 +80,12 @@ console.log('==============================\n');
 // ============================================
 // 🚦 Middleware Configuration
 // ============================================
-app.use(express.json());
-app.use(cors({ 
-  origin: process.env.CORS_ORIGIN || "http://localhost:3000", 
-  credentials: true 
+app.use(cors({
+  origin: [
+    "https://calico-frontend.vercel.app",  // Production
+    "http://localhost:3000"                // Development
+  ],
+  credentials: true
 }));
 
 // ============================================
@@ -152,7 +154,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/approvals", approvalRoutes);
 app.use("/api/daybooks", daybookRoutes);
 app.use("/api/finalsheets", finalSheetRoutes);
-app.use("/api/pendingusers", pendingUsersRoutes);
+app.use("/api/pending-users", pendingUsersRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/parties", partyRoutes);
 
