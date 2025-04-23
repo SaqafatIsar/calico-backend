@@ -80,6 +80,7 @@ console.log('==============================\n');
 // ============================================
 // 🚦 Middleware Configuration
 // ============================================
+// CORS Configuration
 app.use(cors({
   origin: [
     "https://calico-frontend.vercel.app",  // Production
@@ -87,6 +88,18 @@ app.use(cors({
   ],
   credentials: true
 }));
+
+// Body Parsing Middleware (CRITICAL FIX)
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// Request Logging Middleware (for debugging)
+app.use((req, res, next) => {
+  console.log(`\n[${new Date().toISOString()}] ${req.method} ${req.path}`);
+  console.log('Headers:', req.headers);
+  console.log('Body:', req.body);
+  next();
+});
 
 // ============================================
 // 🗃️ MongoDB Connection (Optimized)
@@ -162,24 +175,12 @@ app.use("/api/parties", partyRoutes);
 // 🏠 Base Route
 // ============================================
 app.get("/", (req, res) => {
-  const dbStatus = mongoose.connection.readyState;
-  const statusMap = {
-    0: 'Disconnected',
-    1: 'Connected',
-    2: 'Connecting',
-    3: 'Disconnecting'
-  };
-  
   res.status(200).json({ 
     message: "Welcome to the Daybook API",
-    database: statusMap[dbStatus] || 'Unknown',
+    status: "running",
     environment: process.env.NODE_ENV || "development",
     timestamp: new Date().toISOString(),
-    endpoints: {
-      auth: "/api/auth",
-      approvals: "/api/approvals",
-      daybooks: "/api/daybooks"
-    }
+    documentation: "https://your-docs-url.com"
   });
 });
 
@@ -196,20 +197,33 @@ app.use((req, res) => {
       "/api/approvals",
       "/api/daybooks",
       "/api/admin"
-    ]
+    ],
+    timestamp: new Date().toISOString()
   });
 });
 
 // ============================================
-// 🔥 Global Error Handler
+// 🔥 Enhanced Error Handler
 // ============================================
 app.use((err, req, res, next) => {
-  console.error("🔥 Server Error:", err.stack);
-  res.status(500).json({ 
-    error: "Internal Server Error",
+  const statusCode = err.statusCode || 500;
+  console.error(`[${new Date().toISOString()}] Error:`, {
     message: err.message,
-    timestamp: new Date().toISOString(),
-    requestId: req.id
+    stack: process.env.NODE_ENV === 'development' ? err.stack : undefined,
+    request: {
+      method: req.method,
+      path: req.path,
+      body: req.body
+    }
+  });
+
+  res.status(statusCode).json({
+    error: statusCode === 500 ? "Internal Server Error" : err.message,
+    message: err.message,
+    ...(process.env.NODE_ENV === 'development' && {
+      stack: err.stack
+    }),
+    timestamp: new Date().toISOString()
   });
 });
 
@@ -231,7 +245,7 @@ const server = app.listen(PORT, '0.0.0.0', () => {
 // 🔌 Graceful Shutdown
 // ============================================
 const shutdown = (signal) => {
-  console.log(`\n🛑 ${signal} received. Shutting down gracefully...`);
+  console.log(`\n[${new Date().toISOString()}] ${signal} received. Shutting down gracefully...`);
   server.close(() => {
     mongoose.connection.close(false, () => {
       console.log('✅ MongoDB connection closed');
