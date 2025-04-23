@@ -3,7 +3,15 @@ const mongoose = require("mongoose");
 const PendingUser = require("../models/PendingUser");
 const User = require("../models/User"); // Make sure to import User model
 const router = express.Router();
-
+// Add this additional route
+router.get("", async (req, res) => {
+  try {
+    const pendingUsers = await PendingUser.find({});
+    res.json(pendingUsers);
+  } catch (error) {
+    res.status(500).json({ error: "Server error" });
+  }
+});
 // Get All Pending Users
 router.get("/", async (req, res) => {
   try {
