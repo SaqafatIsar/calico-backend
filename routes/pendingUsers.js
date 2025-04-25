@@ -101,11 +101,13 @@ const User = require("../models/User");
 const router = express.Router();
 const authMiddleware = require("../middleware/authMiddleware");
 
+console.log('Initializing PendingUsers routes...');
+
 // Get All Pending Users
 router.get("/", authMiddleware, async (req, res) => {
   try {
     const pendingUsers = await PendingUser.find({}, "username email createdAt")
-      .sort({ createdAt: -1 }); // Newest first
+      .sort({ createdAt: -1 });
     res.json(pendingUsers);
   } catch (error) {
     console.error("Error fetching pending users:", error);
@@ -121,9 +123,8 @@ router.post("/:userId/approve", authMiddleware, async (req, res) => {
   try {
     const { userId } = req.params;
     const { role } = req.body;
-    const approvedBy = req.user._id; // From auth middleware
+    const approvedBy = req.user._id;
 
-    // Validate input
     if (!mongoose.Types.ObjectId.isValid(userId)) {
       return res.status(400).json({ error: "Invalid user ID" });
     }
@@ -131,13 +132,11 @@ router.post("/:userId/approve", authMiddleware, async (req, res) => {
       return res.status(400).json({ error: "Role is required" });
     }
 
-    // Find pending user
     const pendingUser = await PendingUser.findById(userId);
     if (!pendingUser) {
       return res.status(404).json({ error: "Pending user not found" });
     }
 
-    // Check if email already exists in main collection
     const existingUser = await User.findOne({ email: pendingUser.email });
     if (existingUser) {
       return res.status(409).json({ 
@@ -145,7 +144,6 @@ router.post("/:userId/approve", authMiddleware, async (req, res) => {
       });
     }
 
-    // Create new user
     const newUser = new User({
       username: pendingUser.username,
       email: pendingUser.email,
@@ -156,8 +154,6 @@ router.post("/:userId/approve", authMiddleware, async (req, res) => {
     });
 
     await newUser.save();
-    
-    // Remove from pending collection
     await PendingUser.findByIdAndDelete(userId);
 
     res.status(201).json({ 
@@ -208,6 +204,23 @@ router.delete("/:userId", authMiddleware, async (req, res) => {
       error: "Error rejecting user",
       details: error.message 
     });
+  }
+});
+
+// Health check endpoint
+router.get('/health-check', (req, res) => {
+  res.status(200).json({
+    status: 'Pending Users Route Working',
+    timestamp: new Date().toISOString()
+  });
+});
+
+// Log all registered routes
+console.log('PendingUsers routes registered:');
+router.stack.forEach(layer => {
+  if (layer.route) {
+    const methods = Object.keys(layer.route.methods).join(', ').toUpperCase();
+    console.log(`- ${methods} ${layer.route.path}`);
   }
 });
 
