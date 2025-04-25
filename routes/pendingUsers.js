@@ -98,10 +98,16 @@ const express = require("express");
 const mongoose = require("mongoose");
 const PendingUser = require("../models/PendingUser");
 const User = require("../models/User");
-const router = express.Router();
 const authMiddleware = require("../middleware/authMiddleware");
 
-// Get All Pending Users
+const router = express.Router();
+
+// ✅ Health check endpoint first (optional placement)
+router.get("/health-check", (req, res) => {
+  res.status(200).json({ status: "Pending Users Route Working" });
+});
+
+// ✅ Get All Pending Users
 router.get("/", authMiddleware, async (req, res) => {
   try {
     const pendingUsers = await PendingUser.find({}, "username email createdAt")
@@ -109,21 +115,20 @@ router.get("/", authMiddleware, async (req, res) => {
     res.json(pendingUsers);
   } catch (error) {
     console.error("Error fetching pending users:", error);
-    res.status(500).json({ 
+    res.status(500).json({
       error: "Error fetching pending users",
-      details: error.message 
+      details: error.message
     });
   }
 });
 
-// Approve and Move User to Main Collection
+// ✅ Approve and Move User to Main Collection
 router.post("/:userId/approve", authMiddleware, async (req, res) => {
   try {
     const { userId } = req.params;
     const { role } = req.body;
     const approvedBy = req.user._id;
 
-    // Validate input
     if (!mongoose.Types.ObjectId.isValid(userId)) {
       return res.status(400).json({ error: "Invalid user ID" });
     }
@@ -131,32 +136,29 @@ router.post("/:userId/approve", authMiddleware, async (req, res) => {
       return res.status(400).json({ error: "Role is required" });
     }
 
-    // Find pending user
     const pendingUser = await PendingUser.findById(userId);
     if (!pendingUser) {
       return res.status(404).json({ error: "Pending user not found" });
     }
 
-    // Check if email exists in main collection
     const existingUser = await User.findOne({ email: pendingUser.email });
     if (existingUser) {
       return res.status(409).json({ error: "User with this email already exists" });
     }
 
-    // Create new user
     const newUser = new User({
       username: pendingUser.username,
       email: pendingUser.email,
       password: pendingUser.password,
-      role: role,
-      approvedBy: approvedBy,
+      role,
+      approvedBy,
       status: "active"
     });
 
     await newUser.save();
     await PendingUser.findByIdAndDelete(userId);
 
-    res.status(201).json({ 
+    res.status(201).json({
       success: true,
       message: "User approved successfully",
       user: {
@@ -169,14 +171,14 @@ router.post("/:userId/approve", authMiddleware, async (req, res) => {
 
   } catch (error) {
     console.error("Error approving user:", error);
-    res.status(500).json({ 
+    res.status(500).json({
       error: "Error approving user",
-      details: error.message 
+      details: error.message
     });
   }
 });
 
-// Delete (Reject) a Pending User
+// ✅ Delete (Reject) a Pending User
 router.delete("/:userId", authMiddleware, async (req, res) => {
   try {
     const { userId } = req.params;
@@ -189,8 +191,8 @@ router.delete("/:userId", authMiddleware, async (req, res) => {
     if (!deletedUser) {
       return res.status(404).json({ message: "User not found" });
     }
-    
-    res.json({ 
+
+    res.json({
       success: true,
       message: "User rejected successfully",
       rejectedUser: {
@@ -200,17 +202,12 @@ router.delete("/:userId", authMiddleware, async (req, res) => {
     });
   } catch (error) {
     console.error("Error rejecting user:", error);
-    res.status(500).json({ 
+    res.status(500).json({
       error: "Error rejecting user",
-      details: error.message 
+      details: error.message
     });
   }
 });
 
-// Health check endpoint
-router.get("/health-check", (req, res) => {
-  res.status(200).json({ status: "Pending Users Route Working" });
-});
-
-// Export the router directly
+// ✅ Export the router correctly
 module.exports = router;
