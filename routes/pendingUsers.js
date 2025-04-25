@@ -99,55 +99,74 @@ const mongoose = require("mongoose");
 const PendingUser = require("../models/PendingUser");
 const User = require("../models/User");
 const router = express.Router();
+const authMiddleware = require("../middleware/authMiddleware");
 
-// Get All Pending Users (removed duplicate route)
-router.get("/", async (req, res) => {
+// Get All Pending Users
+router.get("/", authMiddleware, async (req, res) => {
   try {
-    const pendingUsers = await PendingUser.find({}, "username email createdAt");
+    const pendingUsers = await PendingUser.find({}, "username email createdAt")
+      .sort({ createdAt: -1 }); // Newest first
     res.json(pendingUsers);
   } catch (error) {
     console.error("Error fetching pending users:", error);
-    res.status(500).json({ error: "Error fetching pending users" });
+    res.status(500).json({ 
+      error: "Error fetching pending users",
+      details: error.message 
+    });
   }
 });
 
 // Approve and Move User to Main Collection
-router.post("/:userId/approve", async (req, res) => {  // Changed endpoint structure
+router.post("/:userId/approve", authMiddleware, async (req, res) => {
   try {
     const { userId } = req.params;
-    const { role, approvedBy } = req.body;  // Added approvedBy
+    const { role } = req.body;
+    const approvedBy = req.user._id; // From auth middleware
 
     // Validate input
     if (!mongoose.Types.ObjectId.isValid(userId)) {
       return res.status(400).json({ error: "Invalid user ID" });
     }
-    if (!role || !approvedBy) {
-      return res.status(400).json({ error: "Role and approvedBy are required" });
+    if (!role) {
+      return res.status(400).json({ error: "Role is required" });
     }
 
-    // Find and remove from pending
-    const pendingUser = await PendingUser.findByIdAndDelete(userId);
+    // Find pending user
+    const pendingUser = await PendingUser.findById(userId);
     if (!pendingUser) {
       return res.status(404).json({ error: "Pending user not found" });
     }
 
-    // Create new user in main collection
+    // Check if email already exists in main collection
+    const existingUser = await User.findOne({ email: pendingUser.email });
+    if (existingUser) {
+      return res.status(409).json({ 
+        error: "User with this email already exists" 
+      });
+    }
+
+    // Create new user
     const newUser = new User({
       username: pendingUser.username,
       email: pendingUser.email,
       password: pendingUser.password,
       role: role,
-      approvedBy: approvedBy  // Track who approved
+      approvedBy: approvedBy,
+      status: "active"
     });
 
     await newUser.save();
     
-    res.json({ 
+    // Remove from pending collection
+    await PendingUser.findByIdAndDelete(userId);
+
+    res.status(201).json({ 
       success: true,
       message: "User approved successfully",
       user: {
         id: newUser._id,
         username: newUser.username,
+        email: newUser.email,
         role: newUser.role
       }
     });
@@ -162,7 +181,7 @@ router.post("/:userId/approve", async (req, res) => {  // Changed endpoint struc
 });
 
 // Delete (Reject) a Pending User
-router.delete("/:userId", async (req, res) => {
+router.delete("/:userId", authMiddleware, async (req, res) => {
   try {
     const { userId } = req.params;
 
@@ -177,10 +196,14 @@ router.delete("/:userId", async (req, res) => {
     
     res.json({ 
       success: true,
-      message: "User rejected successfully" 
+      message: "User rejected successfully",
+      rejectedUser: {
+        id: deletedUser._id,
+        email: deletedUser.email
+      }
     });
   } catch (error) {
-    console.error("Error deleting user:", error);
+    console.error("Error rejecting user:", error);
     res.status(500).json({ 
       error: "Error rejecting user",
       details: error.message 
