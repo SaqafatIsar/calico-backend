@@ -54,6 +54,9 @@
 // // ✅ Start Server
 // const PORT = process.env.PORT || 5000;
 // app.listen(PORT, () => console.log(`🚀 Server running on http://localhost:${PORT}`));
+
+
+
 const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
@@ -156,10 +159,12 @@ const authRoutes = require("./routes/auth");
 const approvalRoutes = require("./routes/approval");
 const daybookRoutes = require("./routes/daybook");
 const finalSheetRoutes = require("./routes/finalsheet");
-// const pendingUsersRoutes = require("./routes/pendingUsers");
-const pendingUsersRouter = require('./routes/pendingUsers');
+// // const pendingUsersRoutes = require("./routes/pendingUsers");
+// const pendingUsersRouter = require('./routes/pendingUsers');
 const adminRoutes = require("./routes/adminRoutes");
 const partyRoutes = require("./routes/party");
+const pendingUsersRouter = require('./routes/newPendingUsers');
+app.use('/api/pending-users', pendingUsersRouter);
 
 // ============================================
 // 🌐 API Routes
