@@ -159,12 +159,15 @@ const authRoutes = require("./routes/auth");
 const approvalRoutes = require("./routes/approval");
 const daybookRoutes = require("./routes/daybook");
 const finalSheetRoutes = require("./routes/finalsheet");
-// // const pendingUsersRoutes = require("./routes/pendingUsers");
+const pendingUsersRoutes = require("./routes/pendingUsers");
 // const pendingUsersRouter = require('./routes/pendingUsers');
 const adminRoutes = require("./routes/adminRoutes");
 const partyRoutes = require("./routes/party");
-const pendingUsersRouter = require('./routes/newPendingUsers');
-app.use('/api/pending-users', pendingUsersRouter);
+
+
+
+// const pendingUsersRouter = require('./routes/newPendingUsers');
+// app.use('/api/pending-users', pendingUsersRouter);
 
 // ============================================
 // 🌐 API Routes
@@ -173,8 +176,8 @@ app.use("/api/auth", authRoutes);
 app.use("/api/approvals", approvalRoutes);
 app.use("/api/daybooks", daybookRoutes);
 app.use("/api/finalsheets", finalSheetRoutes);
-// app.use("/api/pending-users", pendingUsersRoutes);
-app.use('/api/pending-users', pendingUsersRouter);
+app.use("/api/pending-users", pendingUsersRoutes);
+// app.use('/api/pending-users', pendingUsersRouter);
 
 app.use("/api/admin", adminRoutes);
 app.use("/api/parties", partyRoutes);
