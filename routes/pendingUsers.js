@@ -107,13 +107,12 @@
 
 // // Export the router directly
 // module.exports = pendingUsersRouter;
-
 const express = require('express');
 const mongoose = require('mongoose');
 const PendingUser = require('../models/PendingUser');
 const User = require('../models/User');
-// const authMiddleware = require('../middleware/authMiddleware');
-const { verifyToken } = require('../middleware/authMiddleware');
+const { verifyToken, allowOnlyAdmin2AndAdmin3 } = require('../middleware/authMiddleware');
+
 const router = express.Router();
 
 console.log('Initializing PendingUsers router...');
@@ -123,8 +122,8 @@ router.get('/health', (req, res) => {
   res.status(200).json({ status: 'Pending Users route healthy' });
 });
 
-// Get all pending users
-router.get('/', verifyToken, async (req, res) => {
+// Get all pending users (only Admin2 and Admin3 allowed)
+router.get('/', verifyToken, allowOnlyAdmin2AndAdmin3, async (req, res) => {
   try {
     const users = await PendingUser.find({})
       .select('username email createdAt')
@@ -140,7 +139,7 @@ router.get('/', verifyToken, async (req, res) => {
 });
 
 // Approve user
-router.post('/:userId/approve', authMiddleware, async (req, res) => {
+router.post('/:userId/approve', verifyToken, allowOnlyAdmin2AndAdmin3, async (req, res) => {
   try {
     const { userId } = req.params;
     const { role } = req.body;
@@ -185,7 +184,7 @@ router.post('/:userId/approve', authMiddleware, async (req, res) => {
 });
 
 // Reject user
-router.delete('/:userId', authMiddleware, async (req, res) => {
+router.delete('/:userId', verifyToken, allowOnlyAdmin2AndAdmin3, async (req, res) => {
   try {
     const { userId } = req.params;
 
