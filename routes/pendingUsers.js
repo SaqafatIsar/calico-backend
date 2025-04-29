@@ -112,8 +112,8 @@ const express = require('express');
 const mongoose = require('mongoose');
 const PendingUser = require('../models/PendingUser');
 const User = require('../models/User');
-const authMiddleware = require('../middleware/authMiddleware');
-
+// const authMiddleware = require('../middleware/authMiddleware');
+const { verifyToken } = require('../middleware/authMiddleware');
 const router = express.Router();
 
 console.log('Initializing PendingUsers router...');
@@ -124,7 +124,7 @@ router.get('/health', (req, res) => {
 });
 
 // Get all pending users
-router.get('/', authMiddleware, async (req, res) => {
+router.get('/', verifyToken, async (req, res) => {
   try {
     const users = await PendingUser.find({})
       .select('username email createdAt')
